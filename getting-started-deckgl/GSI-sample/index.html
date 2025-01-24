@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="jp">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeckGLの地理院地図利用のテスト</title>
+    <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        #credits {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            padding: 2px;
+            font-size: 12px;
+            color: #000000;
+            text-shadow: none;
+            background-color: rgba(255, 255, 255, 0.7);
+        }
+
+        #credits a {
+            color: #000000;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div id="credits"></div>
+
+    <script>
+
+        const creditsElement = document.getElementById('credits');
+        creditsElement.innerHTML = `<a href="https://maps.gsi.go.jp/development/ichiran.html#pale2" target="_blank">地理院タイル（淡色地図）</a>`;
+
+        const deckgl = new deck.DeckGL({
+            container: 'map',
+            initialViewState: {
+                longitude: 141.354450548068,
+                latitude: 43.0619436817942,
+                zoom: 7,
+                bearing: 0,
+                pitch: 0,
+                hash: true,
+            },
+            controller: { inertia: true },
+            layers: [
+                // 地理院タイルを読み込む
+                new deck.TileLayer({
+                    data: "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png",
+                    minZoom: 0,
+                    maxZoom: 18,
+                    tileSize: 256,
+                    renderSubLayers: props => new deck.BitmapLayer(props, {
+                        data: null,
+                        image: props.data,
+                        bounds: (({ west, south, east, north }) => [west, south, east, north])(props.tile.bbox),
+                    }),
+                }),
+            ],
+        });
+    </script>
+
+
+</body>
+
+</html>
