@@ -1,115 +1,115 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-    <title>Kyoto Temples Heatmap</title>
+    <title>福岡市立学校位置情報マップ (2015年)</title>
     <script src="https://unpkg.com/deck.gl@^9.0.0/dist.min.js"></script>
     <style>
-        body {
-            margin: 0;
+        body { margin: 0; }
+        #map { width: 100vw; height: 100vh; }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 4px;
+            z-index: 1000;
+            max-width: 300px;
         }
-
-        #map {
-            width: 100vw;
-            height: 100vh;
+        .copyright {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px;
+            border-radius: 4px;
+            z-index: 1000;
+            font-size: 12px;
         }
-        .attribution {
-      position: absolute;
-      bottom: 0;
-      right: 0;
-      background: rgba(255, 255, 255, 0.8);
-      padding: 5px;
-      font-size: 12px;
-      z-index: 1000;
-    }
     </style>
 </head>
-
 <body>
+    <div class="info">
+        <h3>福岡市立学校位置情報 (2015年)</h3>
+        <p>データ出典: 福岡市立学校一覧（幼稚園・小学校・中学校・高等学校・特別支援学校）2015年</p>
+        <p>データ提供: <a href="https://ckan.open-governmentdata.org/dataset/school" target="_blank">福岡市オープンデータ</a></p>
+    </div>
+    <div class="copyright">
+        © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>
+    </div>
     <div id="map"></div>
-    <div class="attribution">© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a></div>
     <script>
-        //OpenStreetMapのデータより、京都市内におけるお寺のデータを取得するためのクエリ (OverpassAPIを使用する)
-        //呼び出し処理の結果を待ったのちレイヤーを描画するように非同期関数として実装する。
-        async function loadTempleData() {
-            const query = `[out:json][timeout:25];
-        area["name"="京都市"]->.searchArea;
-        (
-          way["amenity"="place_of_worship"]["religion"="buddhist"](area.searchArea);
-          relation["amenity"="place_of_worship"]["religion"="buddhist"](area.searchArea);
-        );
-        out center;`;
+        const {DeckGL, ScatterplotLayer, TileLayer, BitmapLayer} = deck;
 
-            const response = await fetch('https://overpass-api.de/api/interpreter', {
-                method: 'POST',
-                body: query
-            });
-            const data = await response.json();
-            // console.log('Temple data:', data); // 動作確認ログ用
+        const INITIAL_VIEW_STATE = {
+            longitude: 130.4017,
+            latitude: 33.5902,
+            zoom: 11,
+            pitch: 0,
+            bearing: 0
+        };
 
-            // Overpass APIから取得したデータを整形して、お寺の位置の代表点を返すようにする
-            const temples = data.elements
-                .filter(e => e.type === 'way' || e.type === 'relation')
-                .map(feature => ({
-                    position: [feature.center.lon, feature.center.lat],
-                    weight: 1
-                }))
-                .filter(feature => feature.position[0] && feature.position[1]);
-
-            // console.log('Processed temples:', temples); // 処理の終了がわかりやすいように調整している。(未完)
-            return temples;
+        async function loadData() {
+            const response = await fetch('./2015school.csv');
+            const text = await response.text();
+            
+            const rows = text.split('\n').slice(1);
+            return rows
+                .filter(row => row.trim())
+                .map(row => {
+                    const columns = row.split(',');
+                    return {
+                        COORDINATES: [
+                            parseFloat(columns[4]),
+                            parseFloat(columns[3])
+                        ],
+                        name: columns[1]
+                    };
+                });
         }
 
-        const deckgl = new deck.DeckGL({
-            container: 'map',
-            initialViewState: {
-                longitude: 135.7681,
-                latitude: 35.0116,
-                zoom: 13
-            },
-            controller: true,
-            layers: [
-                new deck.TileLayer({
-                    data: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    maxZoom: 19,
+        async function initMap() {
+            const data = await loadData();
+
+            const layers = [
+                new TileLayer({
+                    id: 'tile-layer',
+                    data: 'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
                     minZoom: 0,
+                    maxZoom: 19,
+                    tileSize: 256,
                     renderSubLayers: props => {
-                        const { boundingBox } = props.tile;
-                        return new deck.BitmapLayer({
-                            id: props.id,
+                        const {
+                            boundingBox
+                        } = props.tile;
+
+                        return new BitmapLayer(props, {
                             data: null,
                             image: props.data,
                             bounds: [boundingBox[0][0], boundingBox[0][1], boundingBox[1][0], boundingBox[1][1]]
                         });
                     }
+                }),
+                new ScatterplotLayer({
+                    id: 'scatter',
+                    data,
+                    getPosition: d => d.COORDINATES,
+                    getFillColor: [255, 0, 0],
+                    getRadius: 100,
+                    pickable: true,
+                    onClick: info => console.log(info.object?.name)
                 })
-            ]
-        });
+            ];
 
-        loadTempleData().then(temples => {
-            deckgl.setProps({
-                layers: [
-                    ...deckgl.props.layers,
-                    new deck.HeatmapLayer({
-                        id: 'heatmap',
-                        data: temples,
-                        getPosition: d => d.position,
-                        getWeight: d => d.weight,
-                        radiusPixels: 40,
-                        intensity: 3,
-                        threshold: 0.1,
-                        colorRange: [
-                            [65, 182, 196],
-                            [127, 205, 187],
-                            [199, 233, 180],
-                            [237, 248, 177],
-                            [255, 255, 204] // 重み付けが強い部分ほど寒色から暖色に近くなるような設定
-                        ]
-                    })
-                ]
+            new DeckGL({
+                container: 'map',
+                initialViewState: INITIAL_VIEW_STATE,
+                controller: true,
+                layers
             });
-        });
+        }
+
+        initMap();
     </script>
 </body>
-
 </html>
