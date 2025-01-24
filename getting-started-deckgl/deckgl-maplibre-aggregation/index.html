@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MapLibre GL JS と deck.gl の連携サンプル</title>
+    <meta charset="utf-8" />
+    <script src='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css' rel='stylesheet' />
+    <script src="https://unpkg.com/deck.gl@8.9.32/dist.min.js"></script>
+    <!--  https://api.tiles.mapbox.com/mapbox-gl-js/v3.6.2/mapbox-gl.css へのアクセスエラーが返ってくるが、今回の実装ではmapboxの機能を使っておらず問題ない。-->
+    <style>
+        body { margin: 0; }
+        #map { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://tile.openstreetmap.jp/styles/osm-bright-ja/style.json',
+            center: [139.6503, 35.4437], // 横浜市の中心付近
+            zoom: 12
+        });
+
+        // 地図中にランダムにグリッド(矩形)から積み上げ棒グラフが出現するように設定したい。
+        const data = Array.from({ length: 1000 }, () => ({
+            position: [
+                139.6503 + (Math.random() - 0.5) * 0.1, 
+                35.4437 + (Math.random() - 0.5) * 0.1
+            ],
+            weight: Math.random()
+        }));
+
+        const deckgl = new deck.DeckGL({
+            container: 'map',
+            mapStyle: 'https://tile.openstreetmap.jp/styles/osm-bright-ja/style.json', // OSMを元データとする日本版で使いやすいタイルを呼び出し
+            initialViewState: {
+                longitude: 139.6503, // 大体の横浜市の真ん中
+                latitude: 35.4437,
+                zoom: 12
+            },
+            controller: true,
+            layers: [
+                new deck.GridLayer({ 
+                    id: 'grid', // グリッドレイヤーを作成する
+                    data: data,
+                    pickable: true,
+                    extruded: true,
+                    cellSize: 200,
+                    getPosition: d => d.position,
+                    getElevationWeight: d => d.weight,
+                    elevationScale: 4
+                })
+            ]
+        });
+
+        map.addControl(new maplibregl.NavigationControl());
+    </script>
+</body>
+</html>
